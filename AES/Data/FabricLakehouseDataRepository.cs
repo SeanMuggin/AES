@@ -9,6 +9,7 @@ using AES.Evaluator.Models;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Files.DataLake;
+using Azure.Storage.Files.DataLake.Specialized;
 using Parquet;
 
 namespace AES.Evaluator.Data;
@@ -44,10 +45,10 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
     public Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
         => ReadTableAsync(_essaysUri, MapEssay, cancellationToken);
 
-    private async Task<IReadOnlyList<T>> ReadTableAsync<T>(Uri tableUri, Func<IDictionary<string, object?>, T> materializer, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<T>> ReadTableAsync<T>(Uri tableUri, Func<Dictionary<string, object?>, T> materializer, CancellationToken cancellationToken)
     {
         var directoryClient = new DataLakeDirectoryClient(tableUri, _credential);
-        var fileSystemClient = directoryClient.GetFileSystemClient();
+        var fileSystemClient = directoryClient.GetParentFileSystemClient();
 
         var results = new List<T>();
         await foreach (var pathItem in fileSystemClient.GetPathsAsync(directoryClient.Path, recursive: true, cancellationToken: cancellationToken))
@@ -64,7 +65,7 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
 
             var fileClient = fileSystemClient.GetFileClient(pathItem.Name);
             await using var stream = new MemoryStream();
-            await fileClient.ReadToAsync(stream, cancellationToken);
+            await fileClient.ReadToAsync(stream, cancellationToken: cancellationToken);
             stream.Position = 0;
 
             using var parquetReader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken);
@@ -121,7 +122,7 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
         return value;
     }
 
-    private static RubricRecord MapRubric(IDictionary<string, object?> row)
+    private static RubricRecord MapRubric(Dictionary<string, object?> row)
     {
         return new RubricRecord(
             Year: Convert.ToString(row.GetValueOrDefault("Year"), CultureInfo.InvariantCulture) ?? string.Empty,
@@ -130,7 +131,7 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
         );
     }
 
-    private static EssayRecord MapEssay(IDictionary<string, object?> row)
+    private static EssayRecord MapEssay(Dictionary<string, object?> row)
     {
         return new EssayRecord(
             Id: Convert.ToString(row.GetValueOrDefault("Id"), CultureInfo.InvariantCulture) ?? string.Empty,
