@@ -1,6 +1,7 @@
 using System.Data;
 using AES.Evaluator.Configuration;
 using AES.Evaluator.Models;
+using Azure.Identity;
 using Microsoft.Data.SqlClient;
 
 namespace AES.Evaluator.Data;
