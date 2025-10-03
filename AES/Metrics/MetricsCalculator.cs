@@ -34,7 +34,7 @@ public static class MetricsCalculator
         {
             var row = actual[i] - minScore;
             var col = predicted[i] - minScore;
-            if (row is < 0 or >= categories || col is < 0 or >= categories)
+            if (row < 0 || row >= categories || col < 0 || col >= categories)
             {
                 continue;
             }
@@ -164,7 +164,7 @@ public static class MetricsCalculator
         {
             var row = actual[i] - minScore;
             var col = predicted[i] - minScore;
-            if (row is < 0 or >= size || col is < 0 or >= size)
+            if (row < 0 || row >= size || col < 0 || col >= size)
             {
                 continue;
             }
