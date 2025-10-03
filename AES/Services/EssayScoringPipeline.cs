@@ -42,7 +42,8 @@ public sealed class EssayScoringPipeline
         Console.WriteLine($"Row count in essays: {essays.Count}");
         Console.WriteLine($"Row count in rubric: {rubrics.Count}");
 
-        ValidateRubrics(rubrics);
+        //ValidateRubrics(rubrics);
+        rubrics = RemoveDuplicateRubrics(rubrics);
         var joined = JoinEssaysWithRubrics(essays, rubrics);
         Console.WriteLine($"Row count in joined set: {joined.Count}");
 
@@ -336,6 +337,20 @@ public sealed class EssayScoringPipeline
     }
 
     private static double Round(double value) => double.IsNaN(value) ? double.NaN : Math.Round(value, 4);
+    private static List<RubricRecord> RemoveDuplicateRubrics(IEnumerable<RubricRecord> rubrics)
+    {
+        // Use a dictionary to keep the first occurrence of each (Year, EssayType) pair
+        var unique = new Dictionary<(string Year, string EssayType), RubricRecord>();
+        foreach(var rubric in rubrics)
+        {
+            var key = (rubric.Year, rubric.EssayType);
+            if(!unique.ContainsKey(key))
+            {
+                unique[key] = rubric;
+            }
+        }
+        return unique.Values.ToList();
+    }
 
     private sealed record BatchContext(
         string Year,

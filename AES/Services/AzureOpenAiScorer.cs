@@ -42,7 +42,7 @@ public sealed class AzureOpenAiScorer : IDisposable
         _requestUri = new Uri($"{endpoint}openai/deployments/{options.Model}/chat/completions?api-version={apiVersion}");
         _httpClient = new HttpClient();
         _httpClient.DefaultRequestHeaders.Add("api-key", options.ApiKey);
-        _httpClient.Timeout = TimeSpan.FromMinutes(2);
+        _httpClient.Timeout = TimeSpan.FromMinutes(20);
         _maxRetries = maxRetries;
     }
 
@@ -111,8 +111,10 @@ public sealed class AzureOpenAiScorer : IDisposable
                 new { role = "user", content = userMessage }
             },
             response_format = new { type = "json_object" },
-            temperature = 0,
-            max_output_tokens = maxOutputTokens
+            //temperature = 0,
+            max_completion_tokens = maxOutputTokens
+   //       max_tokens = maxOutputTokens //use for other models
+
         };
 
         using var request = new HttpRequestMessage(HttpMethod.Post, _requestUri)

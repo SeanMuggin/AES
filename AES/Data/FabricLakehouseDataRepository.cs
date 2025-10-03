@@ -58,7 +58,18 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
                 continue;
             }
 
-            if (!pathItem.Name.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase))
+            if(!pathItem.Name.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) ||
+                pathItem.Name.Contains("_delta_log", StringComparison.OrdinalIgnoreCase) ||
+                pathItem.Name.EndsWith(".checkpoint.parquet", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            // Skip files in _delta_log or any hidden/system/metadata files
+            if(!pathItem.Name.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) ||
+                pathItem.Name.Contains("/_delta_log/", StringComparison.OrdinalIgnoreCase) ||
+                pathItem.Name.Contains("\\_delta_log\\", StringComparison.OrdinalIgnoreCase) || // for Windows-style paths
+                pathItem.Name.EndsWith(".crc", StringComparison.OrdinalIgnoreCase) ||
+                pathItem.Name.EndsWith(".checkpoint.parquet", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -87,19 +98,23 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
                     continue;
                 }
 
-                var rowCount = columns.First().Value.Length;
-                for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+                var rowCount = columns.Values.Max(arr => arr.Length);
+
+                for(var rowIndex = 0; rowIndex < rowCount; rowIndex++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kvp in columns)
+                    foreach(var kvp in columns)
                     {
-                        row[kvp.Key] = GetArrayValue(kvp.Value, rowIndex);
+
+                        var value = GetArrayValue(kvp.Value, rowIndex);
+                        row[kvp.Key] = rowIndex < kvp.Value.Length ? GetArrayValue(kvp.Value, rowIndex) : null;
                     }
 
                     results.Add(materializer(row));
                 }
+
             }
         }
 
