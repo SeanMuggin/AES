@@ -20,8 +20,8 @@ public sealed class AesEvaluatorOptions
     public sealed class DatabaseOptions
     {
         public string ConnectionString { get; init; } = string.Empty;
-        public string RubricsTable { get; init; } = "rubric";
-        public string EssaysTable { get; init; } = "essays";
+        public string RubricsTableEndpoint { get; init; } = string.Empty;
+        public string EssaysTableEndpoint { get; init; } = string.Empty;
         public string PredictionsTable { get; init; } = "aes_predictions";
         public string UsageTable { get; init; } = "aes_usage";
         public string MetricsByRubricTable { get; init; } = "aes_metrics_by_rubric";

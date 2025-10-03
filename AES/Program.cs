@@ -1,8 +1,6 @@
-using System.Data;
 using AES.Evaluator.Configuration;
 using AES.Evaluator.Data;
 using AES.Evaluator.Services;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 
 var configuration = new ConfigurationBuilder()
@@ -19,9 +17,10 @@ if (options is null)
     return 1;
 }
 
-if (string.IsNullOrWhiteSpace(options.Database.ConnectionString))
+if (string.IsNullOrWhiteSpace(options.Database.RubricsTableEndpoint) ||
+    string.IsNullOrWhiteSpace(options.Database.EssaysTableEndpoint))
 {
-    Console.Error.WriteLine("Database connection string is required. Set AesEvaluator:Database:ConnectionString in configuration.");
+    Console.Error.WriteLine("Fabric lakehouse table endpoints are required. Set AesEvaluator:Database:RubricsTableEndpoint and EssaysTableEndpoint in configuration.");
     return 1;
 }
 
@@ -31,8 +30,20 @@ if (string.IsNullOrWhiteSpace(options.AzureOpenAi.Endpoint) || string.IsNullOrWh
     return 1;
 }
 
-IDataRepository repository = new SqlDataRepository(options.Database, CreateConnection);
-IPipelineResultWriter writer = new SqlPipelineResultWriter(options.Database);
+IDataRepository repository;
+try
+{
+    repository = new FabricLakehouseDataRepository(options.Database);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Failed to create Fabric lakehouse data repository: {ex.Message}");
+    return 1;
+}
+
+IPipelineResultWriter writer = string.IsNullOrWhiteSpace(options.Database.ConnectionString)
+    ? new NullPipelineResultWriter()
+    : new SqlPipelineResultWriter(options.Database);
 
 using var scorer = new AzureOpenAiScorer(options.AzureOpenAi, options.Execution.MaxRetries);
 var runSeed = new Random().Next(1000, 9999);
@@ -48,9 +59,4 @@ catch (Exception ex)
     Console.Error.WriteLine($"Pipeline failed: {ex.Message}");
     Console.Error.WriteLine(ex);
     return 1;
-}
-
-SqlConnection CreateConnection()
-{
-    return new SqlConnection(options.Database.ConnectionString);
 }
