@@ -42,6 +42,12 @@ public sealed class EssayScoringPipeline
         Console.WriteLine($"Row count in essays: {essays.Count}");
         Console.WriteLine($"Row count in rubric: {rubrics.Count}");
 
+    //    var duplicateCounts = essays
+    //.GroupBy(p => p.Id)
+    //.ToDictionary(g => g.Key, g => g.Count());
+
+    //    var dupes = duplicateCounts.Where(kvp => kvp.Value > 1).ToList();
+
         //ValidateRubrics(rubrics);
         rubrics = RemoveDuplicateRubrics(rubrics);
         var joined = JoinEssaysWithRubrics(essays, rubrics);
