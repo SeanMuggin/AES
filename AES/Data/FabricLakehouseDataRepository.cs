@@ -50,36 +50,55 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
         var directoryClient = new DataLakeDirectoryClient(tableUri, _credential);
         var fileSystemClient = directoryClient.GetParentFileSystemClient();
 
-        var results = new List<T>();
-        await foreach (var pathItem in fileSystemClient.GetPathsAsync(directoryClient.Path, recursive: true, cancellationToken: cancellationToken))
+        var tablePath = directoryClient.Path;
+        var deltaLogPath = DeltaLakeSnapshotReader.CombinePaths(tablePath, "_delta_log");
+
+        static async IAsyncEnumerable<DeltaLakeSnapshotReader.DeltaLogFile> EnumerateDeltaLogFilesAsync(
+            DataLakeFileSystemClient fileSystemClient,
+            string deltaLogPath,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            if (pathItem.IsDirectory == true)
+            await foreach (var pathItem in fileSystemClient.GetPathsAsync(deltaLogPath, recursive: false, cancellationToken: cancellationToken))
             {
-                continue;
-            }
+                if (pathItem.IsDirectory == true)
+                {
+                    continue;
+                }
 
-            if(!pathItem.Name.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) ||
-                pathItem.Name.Contains("_delta_log", StringComparison.OrdinalIgnoreCase) ||
-                pathItem.Name.EndsWith(".checkpoint.parquet", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
+                if (DeltaLakeSnapshotReader.TryParseDeltaLogFile(pathItem.Name, out var logFile))
+                {
+                    yield return logFile;
+                }
             }
-            // Skip files in _delta_log or any hidden/system/metadata files
-            if(!pathItem.Name.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) ||
-                pathItem.Name.Contains("/_delta_log/", StringComparison.OrdinalIgnoreCase) ||
-                pathItem.Name.Contains("\\_delta_log\\", StringComparison.OrdinalIgnoreCase) || // for Windows-style paths
-                pathItem.Name.EndsWith(".crc", StringComparison.OrdinalIgnoreCase) ||
-                pathItem.Name.EndsWith(".checkpoint.parquet", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
+        }
 
-            var fileClient = fileSystemClient.GetFileClient(pathItem.Name);
+        async Task<Stream> OpenLogStreamAsync(string path, CancellationToken token)
+        {
+            var fileClient = fileSystemClient.GetFileClient(path);
+            var stream = new MemoryStream();
+            await fileClient.ReadToAsync(stream, cancellationToken: token).ConfigureAwait(false);
+            stream.Position = 0;
+            return stream;
+        }
+
+        var activeDataFiles = await DeltaLakeSnapshotReader.ReadActiveDataFilesAsync(
+            cancellationToken => EnumerateDeltaLogFilesAsync(fileSystemClient, deltaLogPath, cancellationToken),
+            OpenLogStreamAsync,
+            tablePath,
+            cancellationToken).ConfigureAwait(false);
+
+        var results = new List<T>();
+
+        foreach (var dataFilePath in activeDataFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var fileClient = fileSystemClient.GetFileClient(dataFilePath);
             await using var stream = new MemoryStream();
-            await fileClient.ReadToAsync(stream, cancellationToken: cancellationToken);
+            await fileClient.ReadToAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
             stream.Position = 0;
 
-            using var parquetReader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken);
+            using var parquetReader = await ParquetReader.CreateAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
             var dataFields = parquetReader.Schema.GetDataFields();
 
             for (var rowGroup = 0; rowGroup < parquetReader.RowGroupCount; rowGroup++)
@@ -89,7 +108,7 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
 
                 foreach (var field in dataFields)
                 {
-                    var column = await groupReader.ReadColumnAsync(field);
+                    var column = await groupReader.ReadColumnAsync(field).ConfigureAwait(false);
                     columns[field.Name] = column.Data;
                 }
 
@@ -100,21 +119,18 @@ public sealed class FabricLakehouseDataRepository : IDataRepository
 
                 var rowCount = columns.Values.Max(arr => arr.Length);
 
-                for(var rowIndex = 0; rowIndex < rowCount; rowIndex++)
+                for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-                    foreach(var kvp in columns)
+                    foreach (var kvp in columns)
                     {
-
-                        var value = GetArrayValue(kvp.Value, rowIndex);
                         row[kvp.Key] = rowIndex < kvp.Value.Length ? GetArrayValue(kvp.Value, rowIndex) : null;
                     }
 
                     results.Add(materializer(row));
                 }
-
             }
         }
 
