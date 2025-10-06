@@ -5,7 +5,7 @@ public sealed class AesEvaluatorOptions
     public const string SectionName = "AesEvaluator";
 
     public required AzureOpenAiOptions AzureOpenAi { get; init; }
-    public required DatabaseOptions Database { get; init; }
+    public required SqlDatabaseOptions SqlDatabase { get; init; }
     public required PromptOptions Prompt { get; init; }
     public required ExecutionOptions Execution { get; init; }
 
@@ -17,14 +17,14 @@ public sealed class AesEvaluatorOptions
         public string Model { get; init; } = "gpt-5";
     }
 
-    public sealed class DatabaseOptions
+    public sealed class SqlDatabaseOptions
     {
         public string ConnectionString { get; init; } = string.Empty;
-        public string RubricsTableEndpoint { get; init; } = string.Empty;
-        public string EssaysTableEndpoint { get; init; } = string.Empty;
         public string PredictionsTable { get; init; } = "aes_predictions";
         public string UsageTable { get; init; } = "aes_usage";
         public string MetricsByRubricTable { get; init; } = "aes_metrics_by_rubric";
+        public string EssaysTable { get; init; } = "essays";
+        public string RubricsTable { get; init; } = "rubric";
     }
 
     public sealed class PromptOptions

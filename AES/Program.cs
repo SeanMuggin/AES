@@ -17,38 +17,44 @@ if (options is null)
     return 1;
 }
 
-if (string.IsNullOrWhiteSpace(options.Database.RubricsTableEndpoint) ||
-    string.IsNullOrWhiteSpace(options.Database.EssaysTableEndpoint))
-{
-    Console.Error.WriteLine("Fabric lakehouse table endpoints are required. Set AesEvaluator:Database:RubricsTableEndpoint and EssaysTableEndpoint in configuration.");
-    return 1;
-}
-
 if (string.IsNullOrWhiteSpace(options.AzureOpenAi.Endpoint) || string.IsNullOrWhiteSpace(options.AzureOpenAi.ApiKey))
 {
     Console.Error.WriteLine("Azure OpenAI endpoint and API key are required. Set AesEvaluator:AzureOpenAi:Endpoint and ApiKey in configuration.");
     return 1;
 }
 
-IDataRepository repository;
-try
+if (string.IsNullOrWhiteSpace(options.SqlDatabase.ConnectionString))
 {
-    repository = new FabricLakehouseDataRepository(options.Database);
-}
-catch (Exception ex)
-{
-    Console.Error.WriteLine($"Failed to create Fabric lakehouse data repository: {ex.Message}");
+    Console.Error.WriteLine("SQL database connection string is required. Set AesEvaluator:SqlDatabase:ConnectionString in configuration.");
     return 1;
 }
 
-FabricLakehousePipelineResultWriter writerInstance;
+if (string.IsNullOrWhiteSpace(options.SqlDatabase.RubricsTable) ||
+    string.IsNullOrWhiteSpace(options.SqlDatabase.EssaysTable))
+{
+    Console.Error.WriteLine("SQL table names for rubrics and essays are required. Set AesEvaluator:SqlDatabase:RubricsTable and EssaysTable in configuration.");
+    return 1;
+}
+
+IDataRepository repository;
 try
 {
-    writerInstance = new FabricLakehousePipelineResultWriter(options.Database);
+    repository = new SqlDataWarehouseRepository(options.SqlDatabase);
 }
 catch (Exception ex)
 {
-    Console.Error.WriteLine($"Failed to create Fabric lakehouse result writer: {ex.Message}");
+    Console.Error.WriteLine($"Failed to create SQL data repository: {ex.Message}");
+    return 1;
+}
+
+SqlPipelineResultWriter writerInstance;
+try
+{
+    writerInstance = new SqlPipelineResultWriter(options.SqlDatabase);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Failed to create SQL pipeline result writer: {ex.Message}");
     return 1;
 }
 

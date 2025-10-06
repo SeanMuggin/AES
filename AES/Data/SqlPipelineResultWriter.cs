@@ -1,24 +1,37 @@
+using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using AES.Evaluator.Configuration;
 using AES.Evaluator.Models;
+using Azure.Core;
 using Microsoft.Data.SqlClient;
 
 namespace AES.Evaluator.Data;
 
-public sealed class SqlPipelineResultWriter : IPipelineResultWriter
+public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
 {
-    private readonly AesEvaluatorOptions.DatabaseOptions _options;
+    private readonly SqlConnectionFactory _connectionFactory;
+    private readonly string _predictionsTableName;
+    private readonly string _usageTableName;
+    private readonly string _metricsTableName;
 
-    public SqlPipelineResultWriter(AesEvaluatorOptions.DatabaseOptions options)
+    public SqlPipelineResultWriter(AesEvaluatorOptions.SqlDatabaseOptions options, TokenCredential? credential = null)
     {
-        _options = options;
+        ArgumentNullException.ThrowIfNull(options);
+
+        _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
+        _predictionsTableName = SqlIdentifierHelper.FormatTableName(options.PredictionsTable);
+        _usageTableName = SqlIdentifierHelper.FormatTableName(options.UsageTable);
+        _metricsTableName = SqlIdentifierHelper.FormatTableName(options.MetricsByRubricTable);
     }
 
     public async Task WritePredictionsAsync(IEnumerable<ScoredEssayRecord> predictions, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+        var records = predictions as IReadOnlyCollection<ScoredEssayRecord> ?? predictions.ToList();
+        if (records.Count == 0)
         {
-            throw new InvalidOperationException("Connection string is required to persist predictions.");
+            return;
         }
 
         var table = new DataTable();
@@ -36,7 +49,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
         table.Columns.Add("PromptType", typeof(string));
         table.Columns.Add("Run", typeof(string));
 
-        foreach (var record in predictions)
+        foreach (var record in records)
         {
             table.Rows.Add(
                 record.Id,
@@ -55,14 +68,15 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
             );
         }
 
-        await BulkCopyAsync(table, _options.PredictionsTable, cancellationToken);
+        await BulkCopyAsync(table, _predictionsTableName, cancellationToken);
     }
 
     public async Task WriteUsageAsync(IEnumerable<UsageRecordWithRun> usageRecords, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+        var records = usageRecords as IReadOnlyCollection<UsageRecordWithRun> ?? usageRecords.ToList();
+        if (records.Count == 0)
         {
-            throw new InvalidOperationException("Connection string is required to persist usage records.");
+            return;
         }
 
         var table = new DataTable();
@@ -79,7 +93,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
         table.Columns.Add("PromptType", typeof(string));
         table.Columns.Add("Run", typeof(string));
 
-        foreach (var record in usageRecords)
+        foreach (var record in records)
         {
             table.Rows.Add(
                 record.Year,
@@ -97,14 +111,15 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
             );
         }
 
-        await BulkCopyAsync(table, _options.UsageTable, cancellationToken);
+        await BulkCopyAsync(table, _usageTableName, cancellationToken);
     }
 
     public async Task WriteMetricsAsync(IEnumerable<MetricSummary> metrics, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+        var records = metrics as IReadOnlyCollection<MetricSummary> ?? metrics.ToList();
+        if (records.Count == 0)
         {
-            throw new InvalidOperationException("Connection string is required to persist metrics.");
+            return;
         }
 
         var table = new DataTable();
@@ -121,7 +136,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
         table.Columns.Add("macro_f1", typeof(double));
         table.Columns.Add("spearman_r", typeof(double));
 
-        foreach (var record in metrics)
+        foreach (var record in records)
         {
             table.Rows.Add(
                 record.RunDate,
@@ -139,13 +154,12 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
             );
         }
 
-        await BulkCopyAsync(table, _options.MetricsByRubricTable, cancellationToken);
+        await BulkCopyAsync(table, _metricsTableName, cancellationToken);
     }
 
     private async Task BulkCopyAsync(DataTable table, string destinationTable, CancellationToken cancellationToken)
     {
-        await using var connection = new SqlConnection(_options.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
+        await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var bulkCopy = new SqlBulkCopy(connection)
         {
             DestinationTableName = destinationTable
@@ -157,5 +171,10 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter
         }
 
         await bulkCopy.WriteToServerAsync(table, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        GC.SuppressFinalize(this);
     }
 }
