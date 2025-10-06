@@ -21,9 +21,9 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
         ArgumentNullException.ThrowIfNull(options);
 
         _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
-        _predictionsTableName = SqlIdentifierHelper.FormatTableName(options.PredictionsTable);
-        _usageTableName = SqlIdentifierHelper.FormatTableName(options.UsageTable);
-        _metricsTableName = SqlIdentifierHelper.FormatTableName(options.MetricsByRubricTable);
+        _predictionsTableName = options.PredictionsTable;
+        _usageTableName = options.UsageTable;
+        _metricsTableName = options.MetricsByRubricTable;
     }
 
     public async Task WritePredictionsAsync(IEnumerable<ScoredEssayRecord> predictions, CancellationToken cancellationToken)

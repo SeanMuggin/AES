@@ -29,24 +29,26 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         }
 
         _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
-        _rubricsTableName = SqlIdentifierHelper.FormatTableName(options.RubricsTable);
-        _essaysTableName = SqlIdentifierHelper.FormatTableName(options.EssaysTable);
+        _rubricsTableName = options.RubricsTable;
+        _essaysTableName = options.EssaysTable;
     }
 
     public async Task<IReadOnlyList<RubricRecord>> GetRubricsAsync(CancellationToken cancellationToken)
     {
-        const string query = "SELECT [Year], [EssayType], [Rubric] FROM {0}";
+        string query = $"SELECT [Year], [EssayType], [Rubric] FROM {_rubricsTableName}";
         return await ExecuteQueryAsync(
-            string.Format(CultureInfo.InvariantCulture, query, _rubricsTableName),
+            query,
             MapRubric,
             cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
     {
-        const string query = "SELECT [Id], [Year], [EssayType], [EssayContent], [ReaderId], [StudentId], [GoldScore] FROM {0}";
+        //string query = $"SELECT [Id], [Year], [EssayType], [EssayContent], [ReaderId], [StudentId], [GoldScore] FROM {_essaysTableName}";
+        string query = $"SELECT [Id], [Year], [EssayType], [Score], [EssayContent] FROM {_essaysTableName}";
+
         return await ExecuteQueryAsync(
-            string.Format(CultureInfo.InvariantCulture, query, _essaysTableName),
+            query,
             MapEssay,
             cancellationToken).ConfigureAwait(false);
     }

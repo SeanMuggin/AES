@@ -25,6 +25,8 @@ internal sealed class SqlConnectionFactory
 
     public async Task<SqlConnection> CreateOpenConnectionAsync(CancellationToken cancellationToken)
     {
+        //TokenCredential tokenCredential = _credential;
+        //string tokenString = tokenCredential.GetToken(default, new()).Token;
         var connection = new SqlConnection(_connectionString);
         var token = await _credential.GetTokenAsync(TokenContext, cancellationToken).ConfigureAwait(false);
         connection.AccessToken = token.Token;

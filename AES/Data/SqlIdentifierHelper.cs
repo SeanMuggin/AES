@@ -6,21 +6,6 @@ namespace AES.Evaluator.Data;
 
 internal static class SqlIdentifierHelper
 {
-    public static string FormatTableName(string tableName)
-    {
-        if (string.IsNullOrWhiteSpace(tableName))
-        {
-            throw new ArgumentException("Table name is required.", nameof(tableName));
-        }
-
-        var segments = tableName.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        if (segments.Length == 0)
-        {
-            throw new ArgumentException("Table name must contain at least one identifier.", nameof(tableName));
-        }
-
-        return string.Join('.', segments.Select(EscapeIdentifier));
-    }
 
     private static string EscapeIdentifier(string identifier)
     {
