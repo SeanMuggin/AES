@@ -17,7 +17,7 @@ public sealed class ExemplarSelector
         int k)
     {
         var pool = essays
-            .Where(e => !excludeIds.Contains(e.Id) && e.Score.HasValue)
+            .Where(e => !excludeIds.Contains(e.Id) && e.GoldScore.HasValue)
             .ToList();
 
         if (pool.Count == 0 || k <= 0)
@@ -29,7 +29,7 @@ public sealed class ExemplarSelector
 
         for (var score = 1; score <= 5 && result.Count < k; score++)
         {
-            var scoreGroup = pool.Where(e => e.Score == score).ToList();
+            var scoreGroup = pool.Where(e => e.GoldScore == score).ToList();
             if (scoreGroup.Count == 0)
             {
                 continue;
@@ -61,7 +61,7 @@ public sealed class ExemplarSelector
         Shuffle(candidates);
         foreach (var candidate in candidates.Take(count))
         {
-            target.Add((candidate.EssayContent, candidate.Score!.Value));
+            target.Add((candidate.EssayContent, candidate.GoldScore!.Value));
         }
     }
 
