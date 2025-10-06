@@ -41,9 +41,18 @@ catch (Exception ex)
     return 1;
 }
 
-IPipelineResultWriter writer = string.IsNullOrWhiteSpace(options.Database.ConnectionString)
-    ? new NullPipelineResultWriter()
-    : new SqlPipelineResultWriter(options.Database);
+FabricLakehousePipelineResultWriter writerInstance;
+try
+{
+    writerInstance = new FabricLakehousePipelineResultWriter(options.Database);
+}
+catch (Exception ex)
+{
+    Console.Error.WriteLine($"Failed to create Fabric lakehouse result writer: {ex.Message}");
+    return 1;
+}
+
+using var writer = writerInstance;
 
 using var scorer = new AzureOpenAiScorer(options.AzureOpenAi, options.Execution.MaxRetries);
 var runSeed = new Random().Next(1000, 9999);
