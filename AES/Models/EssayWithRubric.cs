@@ -9,5 +9,5 @@ public sealed record EssayWithRubric(
     public string Year => Essay.Year;
     public string EssayType => Essay.EssayType;
     public string EssayContent => Essay.EssayContent;
-    public int? GoldScore => Essay.GoldScore;
+    public int? Score => Essay.Score;
 }

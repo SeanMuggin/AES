@@ -5,7 +5,5 @@ public sealed record EssayRecord(
     string Year,
     string EssayType,
     string EssayContent,
-    string? ReaderId,
-    string? StudentId,
-    int? GoldScore
+    int? Score
 );

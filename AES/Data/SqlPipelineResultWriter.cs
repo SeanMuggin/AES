@@ -38,9 +38,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
         table.Columns.Add("Id", typeof(string));
         table.Columns.Add("Year", typeof(string));
         table.Columns.Add("EssayType", typeof(string));
-        table.Columns.Add("ReaderId", typeof(string));
-        table.Columns.Add("StudentId", typeof(string));
-        table.Columns.Add("GoldScore", typeof(int));
+        table.Columns.Add("Score", typeof(int));
         table.Columns.Add("PredScore", typeof(int));
         table.Columns.Add("PredRationale", typeof(string));
         table.Columns.Add("RunDate", typeof(string));
@@ -55,9 +53,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
                 record.Id,
                 record.Year,
                 record.EssayType,
-                record.ReaderId ?? (object)DBNull.Value,
-                record.StudentId ?? (object)DBNull.Value,
-                record.GoldScore ?? (object)DBNull.Value,
+                record.Score ?? (object)DBNull.Value,
                 record.PredScore ?? (object)DBNull.Value,
                 record.PredRationale ?? string.Empty,
                 record.RunDate,

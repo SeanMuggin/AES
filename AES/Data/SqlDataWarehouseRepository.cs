@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
-using System.Globalization;
 using AES.Evaluator.Configuration;
 using AES.Evaluator.Models;
 using Azure.Core;
@@ -44,7 +43,6 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
     {
-        //string query = $"SELECT [Id], [Year], [EssayType], [EssayContent], [ReaderId], [StudentId], [GoldScore] FROM {_essaysTableName}";
         string query = $"SELECT [Id], [Year], [EssayType], [Score], [EssayContent] FROM {_essaysTableName}";
 
         return await ExecuteQueryAsync(
@@ -86,10 +84,8 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         var id = SqlIdentifierHelper.ConvertToString(reader["Id"]);
         var year = SqlIdentifierHelper.ConvertToString(reader["Year"]);
         var essayType = SqlIdentifierHelper.ConvertToString(reader["EssayType"]);
+        var score = SqlIdentifierHelper.ConvertToNullableInt(reader["Score"]);
         var essayContent = SqlIdentifierHelper.ConvertToString(reader["EssayContent"]);
-        var readerId = SqlIdentifierHelper.ConvertToNullableString(reader["ReaderId"]);
-        var studentId = SqlIdentifierHelper.ConvertToNullableString(reader["StudentId"]);
-        var goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
-        return new EssayRecord(id, year, essayType, essayContent, readerId, studentId, goldScore);
+        return new EssayRecord(id, year, essayType, essayContent, score);
     }
 }
