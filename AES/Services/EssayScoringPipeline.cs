@@ -240,7 +240,9 @@ public sealed class EssayScoringPipeline
                 e.Id,
                 e.Year,
                 e.EssayType,
-                e.Score,
+                e.Essay.ReaderId,
+                e.Essay.StudentId,
+                e.GoldScore,
                 pred?.PredScore,
                 pred?.PredRationale,
                 runDate,
@@ -272,8 +274,8 @@ public sealed class EssayScoringPipeline
         var run = scored.First().Run;
 
         var valid = scored
-            .Where(s => s.Score.HasValue && s.PredScore.HasValue)
-            .Select(s => (Actual: s.Score!.Value, Pred: s.PredScore!.Value, s.Year, s.EssayType))
+            .Where(s => s.GoldScore.HasValue && s.PredScore.HasValue)
+            .Select(s => (Actual: s.GoldScore!.Value, Pred: s.PredScore!.Value, s.Year, s.EssayType))
             .ToList();
 
         var metricSummaries = new List<MetricSummary>();
@@ -306,14 +308,14 @@ public sealed class EssayScoringPipeline
 
     private static void ComputeAndPrintMetrics(IReadOnlyCollection<ScoredEssayRecord> scored)
     {
-        var valid = scored.Where(s => s.Score.HasValue && s.PredScore.HasValue).ToList();
+        var valid = scored.Where(s => s.GoldScore.HasValue && s.PredScore.HasValue).ToList();
         if (valid.Count == 0)
         {
             Console.WriteLine("No scored essays with both gold and predicted scores; skipping metrics.");
             return;
         }
 
-        var actual = valid.Select(v => v.Score!.Value).ToList();
+        var actual = valid.Select(v => v.GoldScore!.Value).ToList();
         var predicted = valid.Select(v => v.PredScore!.Value).ToList();
 
         var summary = new
