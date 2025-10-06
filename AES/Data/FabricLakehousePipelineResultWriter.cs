@@ -14,6 +14,28 @@ using Azure.Storage.Files.DataLake;
 
 namespace AES.Evaluator.Data;
 
+internal interface ILakehouseClientFactory
+{
+    ILakehouseFileSystemClient Create(Uri fileSystemUri, TokenCredential credential);
+}
+
+internal interface ILakehouseFileSystemClient
+{
+    ILakehouseDirectoryClient GetDirectoryClient(string directoryPath);
+}
+
+internal interface ILakehouseDirectoryClient
+{
+    Task CreateIfNotExistsAsync(CancellationToken cancellationToken);
+
+    ILakehouseFileClient GetFileClient(string fileName);
+}
+
+internal interface ILakehouseFileClient
+{
+    Task UploadAsync(Stream content, bool overwrite, CancellationToken cancellationToken);
+}
+
 public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter, IDisposable
 {
     private const string FilesPrefix = "Files";
@@ -27,11 +49,13 @@ public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter,
     private readonly Uri _fileSystemUri;
     private readonly TokenCredential _credential;
     private readonly HttpClient _httpClient;
+    private readonly ILakehouseClientFactory _fileSystemClientFactory;
 
     public FabricLakehousePipelineResultWriter(
         AesEvaluatorOptions.DatabaseOptions options,
         HttpClient? httpClient = null,
-        TokenCredential? credential = null)
+        TokenCredential? credential = null,
+        ILakehouseClientFactory? clientFactory = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -51,6 +75,7 @@ public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter,
         _fileSystemUri = BuildFileSystemUri(_workspaceId, _lakehouseId);
         _credential = credential ?? new DefaultAzureCredential();
         _httpClient = httpClient ?? new HttpClient();
+        _fileSystemClientFactory = clientFactory ?? new DataLakeClientFactory();
     }
 
     public async Task WritePredictionsAsync(
@@ -240,7 +265,7 @@ public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter,
         string csvContent,
         CancellationToken cancellationToken)
     {
-        var fileSystemClient = new DataLakeFileSystemClient(_fileSystemUri, _credential);
+        var fileSystemClient = _fileSystemClientFactory.Create(_fileSystemUri, _credential);
         var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
         if (segments.Length < 2)
         {
@@ -420,5 +445,66 @@ public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter,
             : lakehouseId + ".Lakehouse";
 
         return new Uri($"https://onelake.dfs.fabric.microsoft.com/{workspaceId}/{lakehouseSegment}");
+    }
+
+    private sealed class DataLakeClientFactory : ILakehouseClientFactory
+    {
+        public ILakehouseFileSystemClient Create(Uri fileSystemUri, TokenCredential credential)
+        {
+            var client = new DataLakeFileSystemClient(fileSystemUri, credential);
+            return new DataLakeFileSystemClientAdapter(client);
+        }
+
+        private sealed class DataLakeFileSystemClientAdapter : ILakehouseFileSystemClient
+        {
+            private readonly DataLakeFileSystemClient _client;
+
+            public DataLakeFileSystemClientAdapter(DataLakeFileSystemClient client)
+            {
+                _client = client;
+            }
+
+            public ILakehouseDirectoryClient GetDirectoryClient(string directoryPath)
+            {
+                var directoryClient = _client.GetDirectoryClient(directoryPath);
+                return new DataLakeDirectoryClientAdapter(directoryClient);
+            }
+        }
+
+        private sealed class DataLakeDirectoryClientAdapter : ILakehouseDirectoryClient
+        {
+            private readonly DataLakeDirectoryClient _client;
+
+            public DataLakeDirectoryClientAdapter(DataLakeDirectoryClient client)
+            {
+                _client = client;
+            }
+
+            public async Task CreateIfNotExistsAsync(CancellationToken cancellationToken)
+            {
+                await _client.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+
+            public ILakehouseFileClient GetFileClient(string fileName)
+            {
+                var fileClient = _client.GetFileClient(fileName);
+                return new DataLakeFileClientAdapter(fileClient);
+            }
+        }
+
+        private sealed class DataLakeFileClientAdapter : ILakehouseFileClient
+        {
+            private readonly DataLakeFileClient _client;
+
+            public DataLakeFileClientAdapter(DataLakeFileClient client)
+            {
+                _client = client;
+            }
+
+            public async Task UploadAsync(Stream content, bool overwrite, CancellationToken cancellationToken)
+            {
+                await _client.UploadAsync(content, overwrite, cancellationToken: cancellationToken).ConfigureAwait(false);
+            }
+        }
     }
 }
