@@ -251,7 +251,14 @@ public sealed class FabricLakehousePipelineResultWriter : IPipelineResultWriter,
         var fileName = segments[^1];
         var directoryPath = string.Join('/', segments.Take(segments.Length - 1));
         var directoryClient = fileSystemClient.GetDirectoryClient(directoryPath);
-        await directoryClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await directoryClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
+        catch(Exception e)
+        {
+            string message = e.Message;
+        }
         var fileClient = directoryClient.GetFileClient(fileName);
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csvContent));
