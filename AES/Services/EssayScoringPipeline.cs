@@ -35,7 +35,8 @@ public sealed class EssayScoringPipeline
     {
         var runDate = DateTime.UtcNow.Date.ToString("yyyy-MM-dd");
         var runId = new Random().Next(1000, 10000).ToString();
-        var runName = $"{_options.AzureOpenAi.Model}_{_options.Prompt.PromptType}";
+        var promptType = ResolvePromptType();
+        var runName = promptType;
 
         Console.WriteLine("Loading rubrics and essays...");
         var rubrics = await _dataRepository.GetRubricsAsync(cancellationToken);
@@ -121,7 +122,7 @@ public sealed class EssayScoringPipeline
         var predictionList = predictions.ToList();
         var usageList = usage.ToList();
 
-        var scored = BuildScoredRecords(essays, predictionList, runDate, runId, runName);
+        var scored = BuildScoredRecords(essays, predictionList, runDate, runId, promptType, runName);
         var usageWithRun = usageList.Select(u => new UsageRecordWithRun(
             u.Year,
             u.EssayType,
@@ -133,7 +134,7 @@ public sealed class EssayScoringPipeline
             runDate,
             runId,
             _options.AzureOpenAi.Model,
-            _options.Prompt.PromptType,
+            promptType,
             runName)).ToList();
 
         await PersistResultsAsync(scored, usageWithRun, cancellationToken);
@@ -154,6 +155,11 @@ public sealed class EssayScoringPipeline
         var preview = PromptBuilder.BuildUserMessage(batch.Rubric, batch.Items, batch.Exemplars);
         var truncated = preview.Length > 8000 ? preview[..8000] + "... [truncated]" : preview;
         Console.WriteLine(truncated);
+    }
+
+    private string ResolvePromptType()
+    {
+        return _options.Prompt.BuildPromptType(_options.AzureOpenAi.Model);
     }
 
     private static void ValidateRubrics(IEnumerable<RubricRecord> rubrics)
@@ -191,7 +197,7 @@ public sealed class EssayScoringPipeline
             {
                 var chunk = items.Skip(i).Take(_options.Execution.MaxBatchSize).ToArray();
                 IReadOnlyCollection<(string Text, int Score)> exemplars = Array.Empty<(string, int)>();
-                var shouldIncludeExamples = _options.Prompt.IncludeExamples && _options.Mode != AesEvaluatorOptions.EvaluatorMode.Aes;
+                var shouldIncludeExamples = _options.Prompt.IncludeExamples;
                 if (shouldIncludeExamples)
                 {
                     var exclude = new HashSet<string>(chunk.Select(c => c.Id));
@@ -211,6 +217,7 @@ public sealed class EssayScoringPipeline
         IReadOnlyCollection<EssayPrediction> predictions,
         string runDate,
         string runId,
+        string promptType,
         string runName)
     {
         var predictionLookup = predictions
@@ -232,7 +239,7 @@ public sealed class EssayScoringPipeline
                 runDate,
                 runId,
                 _options.AzureOpenAi.Model,
-                _options.Prompt.PromptType,
+                promptType,
                 runName);
         }).ToList();
     }

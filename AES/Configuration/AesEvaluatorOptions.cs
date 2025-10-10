@@ -1,3 +1,5 @@
+using System;
+
 namespace AES.Evaluator.Configuration;
 
 public sealed class AesEvaluatorOptions
@@ -36,9 +38,20 @@ public sealed class AesEvaluatorOptions
 
     public sealed class PromptOptions
     {
-        public string PromptType { get; init; } = "3Shot_Msg2";
         public int ExamplesPerGroup { get; init; }
         public bool IncludeExamples { get; init; }
+
+        public string BuildPromptType(string model)
+        {
+            if (string.IsNullOrWhiteSpace(model))
+            {
+                throw new ArgumentException("Model must be provided.", nameof(model));
+            }
+
+            var normalizedModel = model.Trim();
+            var shotDescriptor = IncludeExamples ? $"{ExamplesPerGroup}Shot" : "0Shot";
+            return $"{normalizedModel}_{shotDescriptor}";
+        }
     }
 
     public sealed class ExecutionOptions
