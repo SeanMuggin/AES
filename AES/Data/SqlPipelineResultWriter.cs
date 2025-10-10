@@ -12,18 +12,28 @@ namespace AES.Evaluator.Data;
 public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
 {
     private readonly SqlConnectionFactory _connectionFactory;
-    private readonly string _predictionsTableName;
+    private readonly string _resultsTableName;
     private readonly string _usageTableName;
     private readonly string _metricsTableName;
 
-    public SqlPipelineResultWriter(AesEvaluatorOptions.SqlDatabaseOptions options, TokenCredential? credential = null)
+    public SqlPipelineResultWriter(AesEvaluatorOptions.SqlDatabaseOptions options, AesEvaluatorOptions.EvaluatorMode mode, TokenCredential? credential = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
-        _predictionsTableName = options.PredictionsTable;
+        _resultsTableName = mode switch
+        {
+            AesEvaluatorOptions.EvaluatorMode.ModelTesting => options.PredictionsTable,
+            AesEvaluatorOptions.EvaluatorMode.Aes => options.ScoredTable,
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), $"Unsupported evaluator mode: {mode}.")
+        };
         _usageTableName = options.UsageTable;
         _metricsTableName = options.MetricsByRubricTable;
+
+        if (string.IsNullOrWhiteSpace(_resultsTableName))
+        {
+            throw new ArgumentException("Result table name is required for the selected mode.", nameof(options));
+        }
     }
 
     public async Task WritePredictionsAsync(IEnumerable<ScoredEssayRecord> predictions, CancellationToken cancellationToken)
@@ -51,7 +61,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
             new ColumnDefinition<ScoredEssayRecord>("Run", r => r.Run)
         };
 
-        await InsertRecordsAsync(records, _predictionsTableName, columns, cancellationToken).ConfigureAwait(false);
+        await InsertRecordsAsync(records, _resultsTableName, columns, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task WriteUsageAsync(IEnumerable<UsageRecordWithRun> usageRecords, CancellationToken cancellationToken)

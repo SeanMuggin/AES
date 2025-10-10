@@ -4,6 +4,14 @@ public sealed class AesEvaluatorOptions
 {
     public const string SectionName = "AesEvaluator";
 
+    public enum EvaluatorMode
+    {
+        ModelTesting,
+        Aes
+    }
+
+    public EvaluatorMode Mode { get; init; } = EvaluatorMode.ModelTesting;
+
     public required AzureOpenAiOptions AzureOpenAi { get; init; }
     public required SqlDatabaseOptions SqlDatabase { get; init; }
     public required PromptOptions Prompt { get; init; }
@@ -21,10 +29,9 @@ public sealed class AesEvaluatorOptions
     {
         public string ConnectionString { get; init; } = string.Empty;
         public string PredictionsTable { get; init; } = "aes_predictions";
+        public string ScoredTable { get; init; } = "aes_scored";
         public string UsageTable { get; init; } = "aes_usage";
         public string MetricsByRubricTable { get; init; } = "aes_metrics_by_rubric";
-        public string EssaysTable { get; init; } = "essays";
-        public string RubricsTable { get; init; } = "rubric";
     }
 
     public sealed class PromptOptions

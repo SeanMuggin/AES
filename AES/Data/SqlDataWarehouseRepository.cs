@@ -3,40 +3,55 @@ using AES.Evaluator.Models;
 using Azure.Core;
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Data.Common;
+using System.IO;
 
 namespace AES.Evaluator.Data;
 
 public sealed class SqlDataWarehouseRepository : IDataRepository
 {
     private readonly SqlConnectionFactory _connectionFactory;
-    private readonly string _rubricsTableName;
-    private readonly string _essaysTableName;
+    private readonly string _rubricQueryPath;
+    private readonly string _essayQueryPath;
 
-    public SqlDataWarehouseRepository(AesEvaluatorOptions.SqlDatabaseOptions options, TokenCredential? credential = null)
+    public SqlDataWarehouseRepository(AesEvaluatorOptions options, TokenCredential? credential = null)
     {
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(options.SqlDatabase);
 
-        if(string.IsNullOrWhiteSpace(options.RubricsTable))
+        var dbOptions = options.SqlDatabase;
+        if (string.IsNullOrWhiteSpace(dbOptions.ConnectionString))
         {
-            throw new ArgumentException("Rubrics table name is required.", nameof(options));
+            throw new ArgumentException("Connection string is required.", nameof(options));
         }
 
-        if(string.IsNullOrWhiteSpace(options.EssaysTable))
+        _connectionFactory = new SqlConnectionFactory(dbOptions.ConnectionString, credential);
+
+        var (rubricFile, essayFile) = options.Mode switch
         {
-            throw new ArgumentException("Essays table name is required.", nameof(options));
+            AesEvaluatorOptions.EvaluatorMode.ModelTesting => ("rubric_ModelTesting.sql", "essays_ModelTesting.sql"),
+            AesEvaluatorOptions.EvaluatorMode.Aes => ("rubric_AES.sql", "essays_AES.sql"),
+            _ => throw new ArgumentOutOfRangeException(nameof(options), $"Unsupported evaluator mode: {options.Mode}.")
+        };
+
+        var basePath = AppContext.BaseDirectory;
+        _rubricQueryPath = Path.Combine(basePath, "SqlQueries", rubricFile);
+        _essayQueryPath = Path.Combine(basePath, "SqlQueries", essayFile);
+
+        if (!File.Exists(_rubricQueryPath))
+        {
+            throw new FileNotFoundException($"Rubric query file not found: {_rubricQueryPath}");
         }
 
-        _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
-        _rubricsTableName = options.RubricsTable;
-        _essaysTableName = options.EssaysTable;
+        if (!File.Exists(_essayQueryPath))
+        {
+            throw new FileNotFoundException($"Essay query file not found: {_essayQueryPath}");
+        }
     }
 
     public async Task<IReadOnlyList<RubricRecord>> GetRubricsAsync(CancellationToken cancellationToken)
     {
-        string query = File.ReadAllText("SqlQueries/rubric_ModelTesting.sql");  // for ModelTesting Mode
-        //string query = File.ReadAllText("SqlQueries/rubric_AES.sql");    // for AES mode
+        var query = await File.ReadAllTextAsync(_rubricQueryPath, cancellationToken).ConfigureAwait(false);
 
         return await ExecuteQueryAsync(
             query,
@@ -46,9 +61,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
     {
-        string query = File.ReadAllText("SqlQueries/essays_ModelTesting.sql");   // for ModelTesting Mode
-        //string query = File.ReadAllText("SqlQueries/essays_AES.sql");    // for AES mode
-
+        var query = await File.ReadAllTextAsync(_essayQueryPath, cancellationToken).ConfigureAwait(false);
 
         return await ExecuteQueryAsync(
             query,
@@ -96,5 +109,4 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         return new EssayRecord(id, year, essayType, essayContent, readerId, studentId, goldScore);
     }
 }
-
 

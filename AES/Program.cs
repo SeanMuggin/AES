@@ -17,6 +17,8 @@ if (options is null)
     return 1;
 }
 
+Console.WriteLine($"Running in {options.Mode} mode.");
+
 if (string.IsNullOrWhiteSpace(options.AzureOpenAi.Endpoint) || string.IsNullOrWhiteSpace(options.AzureOpenAi.ApiKey))
 {
     Console.Error.WriteLine("Azure OpenAI endpoint and API key are required. Set AesEvaluator:AzureOpenAi:Endpoint and ApiKey in configuration.");
@@ -29,17 +31,10 @@ if (string.IsNullOrWhiteSpace(options.SqlDatabase.ConnectionString))
     return 1;
 }
 
-if (string.IsNullOrWhiteSpace(options.SqlDatabase.RubricsTable) ||
-    string.IsNullOrWhiteSpace(options.SqlDatabase.EssaysTable))
-{
-    Console.Error.WriteLine("SQL table names for rubrics and essays are required. Set AesEvaluator:SqlDatabase:RubricsTable and EssaysTable in configuration.");
-    return 1;
-}
-
 IDataRepository repository;
 try
 {
-    repository = new SqlDataWarehouseRepository(options.SqlDatabase);
+    repository = new SqlDataWarehouseRepository(options);
 }
 catch (Exception ex)
 {
@@ -50,7 +45,7 @@ catch (Exception ex)
 SqlPipelineResultWriter writerInstance;
 try
 {
-    writerInstance = new SqlPipelineResultWriter(options.SqlDatabase);
+    writerInstance = new SqlPipelineResultWriter(options.SqlDatabase, options.Mode);
 }
 catch (Exception ex)
 {
