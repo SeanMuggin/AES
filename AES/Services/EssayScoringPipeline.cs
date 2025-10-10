@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using AES.Evaluator.Configuration;
@@ -50,9 +51,6 @@ public sealed class EssayScoringPipeline
 
         //ValidateRubrics(rubrics);
         //rubrics = RemoveDuplicateRubrics(rubrics);
-        var joined = JoinEssaysWithRubrics(essays, rubrics);
-        Console.WriteLine($"Row count in joined set: {joined.Count}");
-
         if (_options.Execution.MaxBatchSize <= 0)
         {
             throw new InvalidOperationException("MaxBatchSize must be greater than zero.");
@@ -63,13 +61,14 @@ public sealed class EssayScoringPipeline
             throw new InvalidOperationException("Concurrency must be greater than zero.");
         }
 
-        if (joined.Count == 0)
+        if (essays.Count == 0)
         {
             Console.WriteLine("No essays to score. Exiting.");
             return;
         }
 
-        var batches = BuildBatches(joined).ToList();
+        var rubricLookup = rubrics.ToDictionary(r => (r.Year, r.EssayType));
+        var batches = BuildBatches(essays, rubricLookup).ToList();
         PreviewFirstBatch(batches);
 
         var predictions = new ConcurrentBag<EssayPrediction>();
@@ -122,7 +121,7 @@ public sealed class EssayScoringPipeline
         var predictionList = predictions.ToList();
         var usageList = usage.ToList();
 
-        var scored = BuildScoredRecords(joined, predictionList, runDate, runId, runName);
+        var scored = BuildScoredRecords(essays, predictionList, runDate, runId, runName);
         var usageWithRun = usageList.Select(u => new UsageRecordWithRun(
             u.Year,
             u.EssayType,
@@ -169,40 +168,24 @@ public sealed class EssayScoringPipeline
         }
     }
 
-    private static List<EssayWithRubric> JoinEssaysWithRubrics(
-        IReadOnlyList<EssayRecord> essays,
-        IReadOnlyList<RubricRecord> rubrics)
-    {
-        var rubricMap = rubrics.ToDictionary(r => (r.Year, r.EssayType));
-        var joined = new List<EssayWithRubric>(essays.Count);
-        var missing = 0;
-        foreach (var essay in essays)
-        {
-            if (!rubricMap.TryGetValue((essay.Year, essay.EssayType), out var rubric))
-            {
-                missing++;
-                continue;
-            }
-
-            joined.Add(new EssayWithRubric(essay, rubric.Rubric));
-        }
-
-        if (missing > 0)
-        {
-            throw new InvalidOperationException($"{missing} essays missing a rubric after join.");
-        }
-
-        return joined;
-    }
-
-    private IReadOnlyList<BatchContext> BuildBatches(IReadOnlyCollection<EssayWithRubric> essays)
+    private IReadOnlyList<BatchContext> BuildBatches(
+        IReadOnlyCollection<EssayRecord> essays,
+        IReadOnlyDictionary<(string Year, string EssayType), RubricRecord> rubrics)
     {
         var batches = new List<BatchContext>();
-        var grouped = essays.GroupBy(e => (e.Year, e.EssayType, e.Rubric));
+        var grouped = essays.GroupBy(e => (e.Year, e.EssayType));
         foreach (var group in grouped)
         {
+            if (!rubrics.TryGetValue((group.Key.Year, group.Key.EssayType), out var rubric))
+            {
+                throw new InvalidOperationException($"Missing rubric for Year='{group.Key.Year}', EssayType='{group.Key.EssayType}'.");
+            }
+
             var groupList = group.ToList();
-            var items = groupList.Select(e => new BatchItem(e.Id.Trim(), e.EssayContent)).ToList();
+            var essaysWithRubric = groupList
+                .Select(e => new EssayWithRubric(e, rubric.Rubric))
+                .ToList();
+            var items = essaysWithRubric.Select(e => new BatchItem(e.Id.Trim(), e.EssayContent)).ToList();
             var batchIndex = 0;
             for (var i = 0; i < items.Count; i += _options.Execution.MaxBatchSize)
             {
@@ -211,10 +194,10 @@ public sealed class EssayScoringPipeline
                 if (_options.Prompt.IncludeExamples)
                 {
                     var exclude = new HashSet<string>(chunk.Select(c => c.Id));
-                    exemplars = _exemplarSelector.ChooseExemplars(groupList, exclude, _options.Prompt.ExamplesPerGroup);
+                    exemplars = _exemplarSelector.ChooseExemplars(essaysWithRubric, exclude, _options.Prompt.ExamplesPerGroup);
                 }
 
-                batches.Add(new BatchContext(group.Key.Year, group.Key.EssayType, group.Key.Rubric, batchIndex, chunk, exemplars));
+                batches.Add(new BatchContext(group.Key.Year, group.Key.EssayType, rubric.Rubric, batchIndex, chunk, exemplars));
                 batchIndex++;
             }
         }
@@ -223,7 +206,7 @@ public sealed class EssayScoringPipeline
     }
 
     private IReadOnlyList<ScoredEssayRecord> BuildScoredRecords(
-        IReadOnlyCollection<EssayWithRubric> essays,
+        IReadOnlyCollection<EssayRecord> essays,
         IReadOnlyCollection<EssayPrediction> predictions,
         string runDate,
         string runId,
@@ -240,8 +223,8 @@ public sealed class EssayScoringPipeline
                 e.Id,
                 e.Year,
                 e.EssayType,
-                e.Essay.ReaderId,
-                e.Essay.StudentId,
+                e.ReaderId,
+                e.StudentId,
                 e.GoldScore,
                 pred?.PredScore,
                 pred?.PredRationale,
