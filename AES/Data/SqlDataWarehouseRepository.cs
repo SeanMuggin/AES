@@ -13,6 +13,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
     private readonly SqlConnectionFactory _connectionFactory;
     private readonly string _rubricsTableName;
     private readonly string _essaysTableName;
+    private readonly bool _includeGoldScore;
 
     public SqlDataWarehouseRepository(AesEvaluatorOptions.SqlDatabaseOptions options, TokenCredential? credential = null)
     {
@@ -31,6 +32,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
         _rubricsTableName = options.RubricsTable;
         _essaysTableName = options.EssaysTable;
+        _includeGoldScore = options.IncludeGoldScore;
     }
 
     public async Task<IReadOnlyList<RubricRecord>> GetRubricsAsync(CancellationToken cancellationToken)
@@ -84,7 +86,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         return new RubricRecord(year, essayType, rubric);
     }
 
-    private static EssayRecord MapEssay(DbDataReader reader)
+    private EssayRecord MapEssay(DbDataReader reader)
     {
         var id = SqlIdentifierHelper.ConvertToString(reader["EssayId"]);
         var year = SqlIdentifierHelper.ConvertToString(reader["Year"]);
@@ -92,8 +94,25 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         var essayContent = SqlIdentifierHelper.ConvertToString(reader["EssayContent"]);
         var readerId = SqlIdentifierHelper.ConvertToNullableString(reader["ReaderId"]);
         var studentId = SqlIdentifierHelper.ConvertToNullableString(reader["StudentId"]);
-        var goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
+        int? goldScore = null;
+        if (_includeGoldScore && ColumnExists(reader, "GoldScore"))
+        {
+            goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
+        }
         return new EssayRecord(id, year, essayType, essayContent, readerId, studentId, goldScore);
+    }
+
+    private static bool ColumnExists(DbDataReader reader, string columnName)
+    {
+        for (var i = 0; i < reader.FieldCount; i++)
+        {
+            if (string.Equals(reader.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
 

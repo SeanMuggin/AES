@@ -25,6 +25,7 @@ public sealed class AesEvaluatorOptions
         public string MetricsByRubricTable { get; init; } = "aes_metrics_by_rubric";
         public string EssaysTable { get; init; } = "essays";
         public string RubricsTable { get; init; } = "rubric";
+        public bool IncludeGoldScore { get; init; } = true;
     }
 
     public sealed class PromptOptions
