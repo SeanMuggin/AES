@@ -49,7 +49,7 @@ public sealed class EssayScoringPipeline
     //    var dupes = duplicateCounts.Where(kvp => kvp.Value > 1).ToList();
 
         //ValidateRubrics(rubrics);
-        rubrics = RemoveDuplicateRubrics(rubrics);
+        //rubrics = RemoveDuplicateRubrics(rubrics);
         var joined = JoinEssaysWithRubrics(essays, rubrics);
         Console.WriteLine($"Row count in joined set: {joined.Count}");
 

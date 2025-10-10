@@ -34,7 +34,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<RubricRecord>> GetRubricsAsync(CancellationToken cancellationToken)
     {
-        string query = $"SELECT [Year], [EssayType], [Rubric] FROM {_rubricsTableName}";
+        string query = $"WITH rubric_scores AS (\r\n    SELECT\r\n        appyear,\r\n        essay,\r\n        CONCAT(\r\n            'Score ',\r\n            score,\r\n            ': ',\r\n            STRING_AGG(\r\n                COALESCE(STRING_ESCAPE(score_criteria, 'json'), N''),\r\n                '; '\r\n            ) WITHIN GROUP (ORDER BY score_criteria)\r\n        ) AS ScoreLabel\r\n    FROM LH_DSP_AES.dbo.dsp_rubric\r\n    GROUP BY appyear, essay, score\r\n),\r\nrubric_summary AS (\r\n    SELECT\r\n        appyear AS [Year],\r\n        essay AS EssayType,\r\n        STRING_AGG(ScoreLabel, '. ') AS Rubric\r\n    FROM rubric_scores\r\n    GROUP BY appyear, essay\r\n),\r\nessay_questions AS (\r\n    SELECT\r\n        [Year],\r\n        EssayType,\r\n        CONCAT('Essay Question: ', Prompt) AS EssayQuestion\r\n    FROM [LH_DSP_AES].[dbo].[essay_questions]\r\n)\r\nSELECT\r\n    rs.[Year],\r\n    rs.EssayType,\r\n    CONCAT(eq.EssayQuestion, ' ', rs.Rubric) AS Rubric\r\nFROM rubric_summary rs\r\nJOIN essay_questions eq\r\n    ON rs.[Year] = eq.[Year]\r\n   AND rs.EssayType = eq.EssayType;";
         return await ExecuteQueryAsync(
             query,
             MapRubric,
@@ -43,7 +43,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
     {
-        string query = $"SELECT [Id], [Year], [EssayType], [EssayContent], [ReaderId], [StudentId], [GoldScore] FROM {_essaysTableName}";
+        string query = $"SELECT \r\n      ROW_NUMBER() OVER (ORDER BY ar.Year ASC) AS Id\r\n      ,[Year]\r\n      ,[EssayType]\r\n      ,[EssayContent]\r\n      ,ar.ReaderId\r\n      ,StudentId\r\n      ,Score GoldScore\r\n  FROM [dbo].[tblDSP_ApplicantReaderDetails] ar\r\n  join [dbo].[App_tblReader] r\r\n    on ar.ReaderId = r.ReaderId\r\n    and r.IsSuperReader = 1\r\n  where \r\n    EssayType in ('DegreeFit','CollegeChoice')\r\n    and [Year] in (2023,2024,2025)\r\n    and ReaderScope = 'FinalSelection'";
 
         return await ExecuteQueryAsync(
             query,
