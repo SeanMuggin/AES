@@ -35,8 +35,8 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<RubricRecord>> GetRubricsAsync(CancellationToken cancellationToken)
     {
-        //string query = File.ReadAllText("SqlQueries/rubric_ModelTesting.sql");  // for ModelTesting Mode
-        string query = File.ReadAllText("SqlQueries/rubric_AES.sql");    // for AES mode
+        string query = File.ReadAllText("SqlQueries/rubric_ModelTesting.sql");  // for ModelTesting Mode
+        //string query = File.ReadAllText("SqlQueries/rubric_AES.sql");    // for AES mode
 
         return await ExecuteQueryAsync(
             query,
@@ -46,8 +46,8 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
 
     public async Task<IReadOnlyList<EssayRecord>> GetEssaysAsync(CancellationToken cancellationToken)
     {
-        //string query = File.ReadAllText("SqlQueries/essays_ModelTesting.sql");   // for ModelTesting Mode
-        string query = File.ReadAllText("SqlQueries/essays_AES.sql");    // for AES mode
+        string query = File.ReadAllText("SqlQueries/essays_ModelTesting.sql");   // for ModelTesting Mode
+        //string query = File.ReadAllText("SqlQueries/essays_AES.sql");    // for AES mode
 
 
         return await ExecuteQueryAsync(
@@ -92,7 +92,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         var essayContent = SqlIdentifierHelper.ConvertToString(reader["EssayContent"]);
         var readerId = SqlIdentifierHelper.ConvertToNullableString(reader["ReaderId"]);
         var studentId = SqlIdentifierHelper.ConvertToNullableString(reader["StudentId"]);
-        var goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["Score"]);
+        var goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
         return new EssayRecord(id, year, essayType, essayContent, readerId, studentId, goldScore);
     }
 }

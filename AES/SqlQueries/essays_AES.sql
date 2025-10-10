@@ -10,7 +10,7 @@ SELECT top 100
 			[EssayContent],
 			cast(999 as int) ReaderId,
 			[StudentID],
-			null Score
+			null GoldScore
 			
 FROM [LH_DSP_AES].[dbo].[tblEssay_History]
 where 

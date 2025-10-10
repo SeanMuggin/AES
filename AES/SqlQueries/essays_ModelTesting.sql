@@ -5,7 +5,7 @@
       ,[EssayContent]
       ,ar.ReaderId
       ,StudentId
-      ,Score
+      ,Score GoldScore
   FROM LH_DSP_AES.[dbo].[tblDSP_ApplicantReaderDetails] ar
   join LH_DSP_AES.[dbo].[App_tblReader] r
     on ar.ReaderId = r.ReaderId
