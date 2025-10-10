@@ -245,8 +245,12 @@ public sealed class EssayScoringPipeline
         await _resultWriter.WritePredictionsAsync(scored, cancellationToken);
         await _resultWriter.WriteUsageAsync(usage, cancellationToken);
 
-        var metrics = BuildMetrics(scored);
-        await _resultWriter.WriteMetricsAsync(metrics, cancellationToken);
+        if(_options.Mode == AesEvaluatorOptions.EvaluatorMode.ModelTesting)
+        {
+            var metrics = BuildMetrics(scored);
+            await _resultWriter.WriteMetricsAsync(metrics, cancellationToken);
+        }
+
     }
 
     private IReadOnlyCollection<MetricSummary> BuildMetrics(IReadOnlyCollection<ScoredEssayRecord> scored)
