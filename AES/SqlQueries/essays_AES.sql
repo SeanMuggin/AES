@@ -8,12 +8,11 @@ SELECT top 100
 				when EssayType like '%major choice and post graduation and career goals' then 'DegreeFit'
 				end [EssayType],
 			[EssayContent],
-			cast(999 as int) ReaderId,
-			[StudentID],
-			null GoldScore
+                        cast(999 as int) ReaderId,
+                        [StudentID]
 			
 FROM [LH_DSP_AES].[dbo].[tblEssay_History]
 where 
 	--EssayType in ('DegreeFit','CollegeChoice')
-	(EssayType like '%college choices' or EssayType like '%major choice and post graduation and career goals')
-	and ScholarYear = 2025
+        (EssayType like '%college choices' or EssayType like '%major choice and post graduation and career goals')
+        and ScholarYear = 2025

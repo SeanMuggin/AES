@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -138,7 +139,10 @@ public sealed class EssayScoringPipeline
 
         await PersistResultsAsync(scored, usageWithRun, cancellationToken);
 
-        ComputeAndPrintMetrics(scored);
+        if (_options.SqlDatabase.IncludeGoldScore)
+        {
+            ComputeAndPrintMetrics(scored);
+        }
 
         Console.WriteLine("Done.");
     }
@@ -244,12 +248,20 @@ public sealed class EssayScoringPipeline
         await _resultWriter.WritePredictionsAsync(scored, cancellationToken);
         await _resultWriter.WriteUsageAsync(usage, cancellationToken);
 
-        var metrics = BuildMetrics(scored);
-        await _resultWriter.WriteMetricsAsync(metrics, cancellationToken);
+        if (_options.SqlDatabase.IncludeGoldScore)
+        {
+            var metrics = BuildMetrics(scored);
+            await _resultWriter.WriteMetricsAsync(metrics, cancellationToken);
+        }
     }
 
     private IReadOnlyCollection<MetricSummary> BuildMetrics(IReadOnlyCollection<ScoredEssayRecord> scored)
     {
+        if (scored.Count == 0)
+        {
+            return Array.Empty<MetricSummary>();
+        }
+
         var runDate = scored.First().RunDate;
         var runId = scored.First().RunId;
         var model = scored.First().Model;
