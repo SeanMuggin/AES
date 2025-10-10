@@ -191,7 +191,8 @@ public sealed class EssayScoringPipeline
             {
                 var chunk = items.Skip(i).Take(_options.Execution.MaxBatchSize).ToArray();
                 IReadOnlyCollection<(string Text, int Score)> exemplars = Array.Empty<(string, int)>();
-                if (_options.Prompt.IncludeExamples)
+                var shouldIncludeExamples = _options.Prompt.IncludeExamples && _options.Mode != AesEvaluatorOptions.EvaluatorMode.Aes;
+                if (shouldIncludeExamples)
                 {
                     var exclude = new HashSet<string>(chunk.Select(c => c.Id));
                     exemplars = _exemplarSelector.ChooseExemplars(essaysWithRubric, exclude, _options.Prompt.ExamplesPerGroup);
