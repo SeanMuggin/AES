@@ -15,12 +15,14 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
     private readonly string _resultsTableName;
     private readonly string _usageTableName;
     private readonly string _metricsTableName;
+    private readonly AesEvaluatorOptions.EvaluatorMode _mode;
 
     public SqlPipelineResultWriter(AesEvaluatorOptions.SqlDatabaseOptions options, AesEvaluatorOptions.EvaluatorMode mode, TokenCredential? credential = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         _connectionFactory = new SqlConnectionFactory(options.ConnectionString, credential);
+        _mode = mode;
         _resultsTableName = mode switch
         {
             AesEvaluatorOptions.EvaluatorMode.ModelTesting => options.PredictionsTable,
@@ -44,14 +46,22 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
             return;
         }
 
-        var columns = new[]
+        var columns = new List<ColumnDefinition<ScoredEssayRecord>>
         {
             new ColumnDefinition<ScoredEssayRecord>("Id", r => r.Id),
             new ColumnDefinition<ScoredEssayRecord>("Year", r => r.Year),
             new ColumnDefinition<ScoredEssayRecord>("EssayType", r => r.EssayType),
             new ColumnDefinition<ScoredEssayRecord>("ReaderId", r => r.ReaderId),
-            new ColumnDefinition<ScoredEssayRecord>("StudentId", r => r.StudentId),
-            new ColumnDefinition<ScoredEssayRecord>("GoldScore", r => r.GoldScore, SqlDbType.Int),
+            new ColumnDefinition<ScoredEssayRecord>("StudentId", r => r.StudentId)
+        };
+
+        if (_mode != AesEvaluatorOptions.EvaluatorMode.Aes)
+        {
+            columns.Add(new ColumnDefinition<ScoredEssayRecord>("GoldScore", r => r.GoldScore, SqlDbType.Int));
+        }
+
+        columns.AddRange(new[]
+        {
             new ColumnDefinition<ScoredEssayRecord>("PredScore", r => r.PredScore, SqlDbType.Int),
             new ColumnDefinition<ScoredEssayRecord>("PredRationale", r => r.PredRationale ?? string.Empty),
             new ColumnDefinition<ScoredEssayRecord>("RunDate", r => r.RunDate),
@@ -59,7 +69,7 @@ public sealed class SqlPipelineResultWriter : IPipelineResultWriter, IDisposable
             new ColumnDefinition<ScoredEssayRecord>("Model", r => r.Model),
             new ColumnDefinition<ScoredEssayRecord>("PromptType", r => r.PromptType),
             new ColumnDefinition<ScoredEssayRecord>("Run", r => r.Run)
-        };
+        });
 
         await InsertRecordsAsync(records, _resultsTableName, columns, cancellationToken).ConfigureAwait(false);
     }

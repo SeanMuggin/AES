@@ -13,6 +13,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
     private readonly SqlConnectionFactory _connectionFactory;
     private readonly string _rubricQueryPath;
     private readonly string _essayQueryPath;
+    private readonly bool _includeGoldScore;
 
     public SqlDataWarehouseRepository(AesEvaluatorOptions options, TokenCredential? credential = null)
     {
@@ -26,6 +27,8 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         }
 
         _connectionFactory = new SqlConnectionFactory(dbOptions.ConnectionString, credential);
+
+        _includeGoldScore = options.Mode != AesEvaluatorOptions.EvaluatorMode.Aes;
 
         var (rubricFile, essayFile) = options.Mode switch
         {
@@ -97,7 +100,7 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         return new RubricRecord(year, essayType, rubric);
     }
 
-    private static EssayRecord MapEssay(DbDataReader reader)
+    private EssayRecord MapEssay(DbDataReader reader)
     {
         var id = SqlIdentifierHelper.ConvertToString(reader["EssayId"]);
         var year = SqlIdentifierHelper.ConvertToString(reader["Year"]);
@@ -105,7 +108,11 @@ public sealed class SqlDataWarehouseRepository : IDataRepository
         var essayContent = SqlIdentifierHelper.ConvertToString(reader["EssayContent"]);
         var readerId = SqlIdentifierHelper.ConvertToNullableString(reader["ReaderId"]);
         var studentId = SqlIdentifierHelper.ConvertToNullableString(reader["StudentId"]);
-        var goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
+        int? goldScore = null;
+        if (_includeGoldScore)
+        {
+            goldScore = SqlIdentifierHelper.ConvertToNullableInt(reader["GoldScore"]);
+        }
         return new EssayRecord(id, year, essayType, essayContent, readerId, studentId, goldScore);
     }
 }
